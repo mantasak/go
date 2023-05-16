@@ -7,10 +7,14 @@
 package poll
 
 import (
+	"fmt"
 	"internal/syscall/unix"
 	"io"
+	"runtime"
+	"runtime/debug"
 	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 // FD is a file descriptor. The net and os packages use this type as a
@@ -76,6 +80,8 @@ func (fd *FD) destroy() error {
 	// so this must be executed before CloseFunc.
 	fd.pd.close()
 
+	fmt.Printf("Destroying FD %d, Timestamp %s, Stacktrace:\n%s\n", fd.Sysfd, getCurrentTimestamp(), getStackTrace())
+
 	// We don't use ignoringEINTR here because POSIX does not define
 	// whether the descriptor is closed if close returns EINTR.
 	// If the descriptor is indeed closed, using a loop would race
@@ -86,6 +92,17 @@ func (fd *FD) destroy() error {
 	fd.Sysfd = -1
 	runtime_Semrelease(&fd.csema)
 	return err
+}
+
+func getCurrentTimestamp() string {
+	t := time.Now()
+	return t.Format("2006-01-02 15:04:05.000000")
+}
+
+func getStackTrace() string {
+	buf := make([]byte, 4096)
+	n := runtime.Stack(buf, false)
+	return string(debug.Stack()[:n])
 }
 
 // Close closes the FD. The underlying file descriptor is closed by the
